@@ -130,7 +130,6 @@ def parse_sidx(data):
 # 3. Main
 # -------------------------------------------------------------------
 async def main():
-    VIDEO_PAGE = 'https://onlyfans.com/'
     SCRIPT_DIR = pathlib.Path(__file__).parent.resolve()
     PROFILE_DIR = SCRIPT_DIR / "playwright_chromium_profile"
     priv_path = SCRIPT_DIR / "device_key" / "device_private_key"
@@ -163,16 +162,18 @@ async def main():
 
         # ---------- Capture ----------
         captured = {'manifest_url': None, 'license_url': None,
-                     'license_headers': None, 'pssh': None}
+                     'license_headers': None, 'pssh': None, 'page_url': None}
 
         async def on_request(request):
             url = request.url
             if '.mpd' in url:
                 captured['manifest_url'] = url
+                captured['page_url'] = page.url
                 print(">>> Manifest captured")
-            if '/drm/message/' in url:
+            if '/drm/' in url:
                 captured['license_url'] = url
                 captured['license_headers'] = dict(request.headers)
+                captured['page_url'] = page.url
 
         page.on('request', on_request)
 
@@ -217,7 +218,7 @@ async def main():
 
             # Fetch manifest
             mpd_resp = await page.request.get(captured['manifest_url'],
-                headers={'Referer': VIDEO_PAGE,
+                headers={'Referer': captured.get('page_url', 'https://onlyfans.com/'),
                          'User-Agent': await page.evaluate("navigator.userAgent")})
             mpd_text = await mpd_resp.text()
             root = ET.fromstring(mpd_text)
@@ -272,7 +273,7 @@ async def main():
 
                 async def fetch_rng(s, e):
                     headers = {'Range': f'bytes={s}-{e}',
-                               'Referer': VIDEO_PAGE,
+                               'Referer': captured.get('page_url', 'https://onlyfans.com/'),
                                'User-Agent': await page.evaluate("navigator.userAgent")}
                     resp = await page.request.get(url, headers=headers)
                     if resp.ok:
@@ -291,7 +292,7 @@ async def main():
                     print(f"  [{prefix}] no sidx – downloading open-ended")
                     resp = await page.request.get(url, headers={
                         'Range': f'bytes={init_e+1}-',
-                        'Referer': VIDEO_PAGE,
+                        'Referer': captured.get('page_url', 'https://onlyfans.com/'),
                         'User-Agent': await page.evaluate("navigator.userAgent")})
                     if resp.ok:
                         media_data = await resp.body()
