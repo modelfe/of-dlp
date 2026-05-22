@@ -1,4 +1,9 @@
 # of-dlp
+
+A Python tool to decrypt and download OnlyFans DRM content
+
+---
+
 **IMPORTANT**: You must provide your own Widevine decryption files (```device_private_key``` and ```device_client_id_blob```) to use this script.
 
 **Requirements**:
