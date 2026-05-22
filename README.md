@@ -1,6 +1,6 @@
 # of-dlp
 
-A Python tool to decrypt and download OnlyFans DRM content
+A Python + Playwright tool to decrypt and download OnlyFans DRM content
 
 ---
 
