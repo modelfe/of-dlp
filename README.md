@@ -25,3 +25,6 @@ The script does **not** download any non‑DRM content.
 It has only been tested on Linux, but should also run on macOS and Windows. If not, create an Issue.
 
 This script is intended for personal use only. Downloading or redistributing copyrighted material may violate OnlyFans' Terms of Service and applicable laws. You are solely responsible for your use of this tool.
+
+UPDATES:
+24 May 2026 - Playwright now uses the system-installed Google Chrome by default (or, if not installed, Edge, Chrome Beta, Chrome Dev, Chrome Canary, in that order of preference), because the Playwright-installed Chromium does not include required Widevine modules by default. Alternative Chromium installations (e.g. Brave, Chromium, etc.) can be specified at the top of the script in the Browser configuration section by providing the path to the browser executable.
