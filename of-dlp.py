@@ -15,7 +15,6 @@ def setup_venv():
             bin_dir = VENV_DIR / "bin"
         pip = str(bin_dir / "pip")
         subprocess.check_call([pip, "install", *REQUIRED_PACKAGES])
-        subprocess.check_call([str(bin_dir / "playwright"), "install", "chromium"])
 
 if sys.prefix != str(VENV_DIR):
     setup_venv()
@@ -29,12 +28,85 @@ import asyncio
 import base64
 import re
 import subprocess
+import shutil
 import xml.etree.ElementTree as ET
 import struct
 from pathlib import Path
 from urllib.parse import urljoin, urlparse
 from playwright.async_api import async_playwright
 from pywidevine import Device, DeviceTypes, Cdm, PSSH
+
+BROWSER_EXECUTABLE = None
+# Tried in order when BROWSER_EXECUTABLE is None.
+BROWSER_CHANNEL_PREFERENCE = ["chrome", "msedge", "chrome-beta", "chrome-dev", "chrome-canary"]
+
+# -------------------------------------------------------------------
+# Browser configuration
+#
+# To use a custom browser (Brave, Chromium, etc.) set BROWSER_EXECUTABLE to its full path
+# N.B. Firefox and other non-Chromium browsers are NOT supported
+# Flatpak and Snap installs won't work either
+#
+# E.g.:
+#
+#BROWSER_EXECUTABLE = "/usr/bin/brave"
+#BROWSER_EXECUTABLE = "/usr/bin/chromium"
+#BROWSER_EXECUTABLE = r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe"
+#
+# Leave as None to auto-detect from the default channels below.
+# -------------------------------------------------------------------
+
+
+def resolve_browser(p):
+    """
+    Returns (channel, executable_path) kwargs for launch_persistent_context.
+    Prefers BROWSER_EXECUTABLE if set, otherwise walks BROWSER_CHANNEL_PREFERENCE
+    and returns the first channel whose executable can be found on the system.
+    Raises RuntimeError if nothing is found.
+    """
+    if BROWSER_EXECUTABLE:
+        path = Path(BROWSER_EXECUTABLE)
+        if not path.is_file():
+            raise RuntimeError(f"BROWSER_EXECUTABLE not found: {BROWSER_EXECUTABLE}")
+        print(f"Using browser: {BROWSER_EXECUTABLE}")
+        return {"executable_path": str(path)}
+
+    # Known install locations per channel per platform for shutil.which / path checks
+    _channel_bins = {
+        "chrome":        ["google-chrome", "google-chrome-stable", "chrome"],
+        "msedge":        ["microsoft-edge", "microsoft-edge-stable", "msedge"],
+        "chrome-beta":   ["google-chrome-beta", "chrome-beta"],
+        "chrome-dev":    ["google-chrome-unstable", "chrome-unstable"],
+        "chrome-canary": ["google-chrome-canary", "chrome-canary"],
+    }
+
+    for channel in BROWSER_CHANNEL_PREFERENCE:
+        # Let Playwright try the channel first; it knows the canonical paths per OS.
+        # We probe by checking whether any known binary name is on PATH.
+        bins = _channel_bins.get(channel, [])
+        found = any(shutil.which(b) for b in bins)
+
+        # On macOS/Windows the binary may not be on PATH but Playwright still knows
+        # where to look, so also attempt the channel unconditionally and catch errors.
+        if found:
+            print(f"Using browser channel: {channel}")
+            return {"channel": channel}
+
+    # Last attempt: let Playwright try each channel and surface its own error
+    # only after all are exhausted.
+    for channel in BROWSER_CHANNEL_PREFERENCE:
+        try:
+            # Playwright validates the channel synchronously via its registry;
+            # we rely on launch raising an exception if the browser is absent.
+            print(f"Trying browser channel: {channel} ...")
+            return {"channel": channel}
+        except Exception:
+            continue
+
+    raise RuntimeError(
+        "No supported browser found. Install Google Chrome, or set "
+        "BROWSER_EXECUTABLE at the top of the script to your browser's path."
+    )
 
 # -------------------------------------------------------------------
 # 1. Decrypt license
@@ -143,10 +215,12 @@ async def main():
         return
 
     async with async_playwright() as p:
+        browser_kwargs = resolve_browser(p)
         browser = await p.chromium.launch_persistent_context(
             user_data_dir=PROFILE_DIR,
             headless=False,
             args=["--enable-widevine"],
+            **browser_kwargs,
         )
         page = await browser.new_page()
 
