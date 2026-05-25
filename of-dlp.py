@@ -219,7 +219,11 @@ async def main():
         browser = await p.chromium.launch_persistent_context(
             user_data_dir=PROFILE_DIR,
             headless=False,
-            args=["--enable-widevine"],
+            ignore_default_args=[
+                "--enable-widevine",
+                "--disable-extensions",
+                "--disable-component-update",
+            ],
             **browser_kwargs,
         )
         page = await browser.new_page()
