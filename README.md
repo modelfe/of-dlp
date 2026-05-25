@@ -9,12 +9,13 @@ A Python + Playwright tool to decrypt and download OnlyFans DRM content
 **Requirements**:
 - Python 3
 - ffmpeg
+- Windows users only: if you get a "DLL load failed while importing _greenlet" error when running it, you may need to install the [Visual C++ runtime DLLs](https://aka.ms/vs/17/release/vc_redist.x64.exe)
 
 **Instructions**:
 1. [Download](https://codeberg.org/cbxcgdxfbc/of-dlp/src/branch/main/of-dlp.py) the script and place it in a folder (e.g. ```/home/user/of-dlp``` or ```C:\Users\YourUsername\of-dlp```).
 2. Inside that folder, create a subfolder named ```device_key``` and place your ```device_private_key``` and ```device_client_id_blob``` files in it.
 3. Make the script executable (```chmod +x of-dlp.py```) – Linux/macOS only; not needed on Windows.
-4. Open terminal (Linux/macOS) or Command Prompt/Powershell (Windows) and run the script: ```/path/to/of-dlp.py```
+4. Open terminal (Linux/macOS) or Command Prompt/Powershell (Windows) and run the script: ```python /path/to/of-dlp.py```
 5. On first run, a Python virtual environment (.venv) is created automatically, and playwright and pywidevine are installed. A Chromium browser opens to OnlyFans – log in once. Subsequent runs stay logged in.
 6. Play any DRM‑protected video on OnlyFans and it will be downloaded automatically to a Downloads subfolder.
 
