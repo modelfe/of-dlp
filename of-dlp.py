@@ -220,7 +220,6 @@ async def main():
             user_data_dir=PROFILE_DIR,
             headless=False,
             ignore_default_args=[
-                "--enable-widevine",
                 "--disable-extensions",
                 "--disable-component-update",
             ],
