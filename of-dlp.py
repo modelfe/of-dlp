@@ -22,7 +22,8 @@ if sys.prefix != str(VENV_DIR):
         python = str(VENV_DIR / "Scripts" / "python.exe")
     else:
         python = str(VENV_DIR / "bin" / "python")
-    os.execv(python, [python, *sys.argv])
+    result = subprocess.call([python, __file__, *sys.argv[1:]])
+    sys.exit(result)
 
 import asyncio
 import base64

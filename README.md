@@ -30,3 +30,4 @@ This script is intended for personal use only. Downloading or redistributing cop
 UPDATES:
 - 24 May 2026 - Playwright now uses the system-installed Google Chrome by default (or, if not installed, Edge, Chrome Beta, Chrome Dev, Chrome Canary, in that order of preference), because the Playwright-installed Chromium does not include required Widevine modules by default. Alternative Chromium installations (e.g. Brave, Chromium, etc.) can be specified at the top of the script in the Browser configuration section by providing the path to the browser executable.
 - 25 May 2026 - fixed bug where Playwright was launching Chrome with "--disable-component-update", which prevented Widevine DRM playback on Windows.
+- 6 September 2026 - replaced ```os.execv``` with ```subprocess.call```/```sys.exit``` to fix path handling on Windows when the script is in a directory with spaces.
