@@ -42,6 +42,63 @@ BROWSER_EXECUTABLE = None
 BROWSER_CHANNEL_PREFERENCE = ["chrome", "msedge", "chrome-beta", "chrome-dev", "chrome-canary"]
 
 # -------------------------------------------------------------------
+# ffmpeg configuration
+#
+# Leave as None to auto-detect: system PATH first, then the folder
+# containing this script (and its bin/ subfolder).
+# If detection fails, set the full path here, e.g.:
+#
+#FFMPEG_EXECUTABLE = r"C:\ffmpeg\bin\ffmpeg.exe"
+#FFMPEG_EXECUTABLE = "/usr/bin/ffmpeg"
+# -------------------------------------------------------------------
+FFMPEG_EXECUTABLE = None
+
+
+def resolve_ffmpeg(script_dir):
+    """
+    Returns the absolute path to the ffmpeg binary, or None if not found.
+    Search order:
+      1. FFMPEG_EXECUTABLE if set
+      2. system PATH
+      3. the script's own folder (and bin/ or ffmpeg/bin/ subfolders)
+    Using an absolute path avoids WinError 2 when the current working
+    directory is not the script directory.
+    """
+    if FFMPEG_EXECUTABLE:
+        p = Path(FFMPEG_EXECUTABLE)
+        if p.is_file():
+            return str(p.resolve())
+        print(f"FFMPEG_EXECUTABLE is set but not found: {FFMPEG_EXECUTABLE}")
+        return None
+
+    found = shutil.which("ffmpeg")
+    if found:
+        return str(Path(found).resolve())
+
+    exe_name = "ffmpeg.exe" if os.name == "nt" else "ffmpeg"
+    for candidate in (script_dir / exe_name,
+                      script_dir / "bin" / exe_name,
+                      script_dir / "ffmpeg" / exe_name,
+                      script_dir / "ffmpeg" / "bin" / exe_name):
+        if candidate.is_file():
+            return str(candidate.resolve())
+
+    return None
+
+
+def print_ffmpeg_help():
+    print("-" * 60)
+    print("ffmpeg not found.")
+    if os.name == "nt":
+        print("  - Put ffmpeg.exe next to this script, or")
+        print("  - Install it:  winget install Gyan.FFmpeg")
+        print("  - Or set FFMPEG_EXECUTABLE at the top of this script.")
+    else:
+        print("  - sudo apt install ffmpeg   /   sudo dnf install ffmpeg")
+        print("  - Or set FFMPEG_EXECUTABLE at the top of this script.")
+    print("-" * 60)
+
+# -------------------------------------------------------------------
 # Browser configuration
 #
 # To use a custom browser (Brave, Chromium, etc.) set BROWSER_EXECUTABLE to its full path
@@ -214,6 +271,13 @@ async def main():
         print("   Please place 'device_private_key' and 'device_client_id_blob'")
         print("   inside the 'device_key' folder next to the script.")
         return
+
+    # Check ffmpeg up front instead of failing after the download completes
+    ffmpeg_bin = resolve_ffmpeg(SCRIPT_DIR)
+    if not ffmpeg_bin:
+        print_ffmpeg_help()
+        return
+    print(f"Using ffmpeg: {ffmpeg_bin}")
 
     async with async_playwright() as p:
         browser_kwargs = resolve_browser(p)
@@ -391,12 +455,13 @@ async def main():
                     print()  # newline after done
                     media_data = b''.join(parts)
 
-                fname = f"{prefix}_enc.mp4"
-                with open(fname, "wb") as f:
+                # Write next to the script using an absolute path, not the cwd
+                fpath = SCRIPT_DIR / f"{prefix}_enc.mp4"
+                with open(fpath, "wb") as f:
                     f.write(init_data)
                     f.write(media_data)
-                print(f"  [{prefix}] saved {fname}")
-                return fname
+                print(f"  [{prefix}] saved {fpath}")
+                return fpath
 
             video_file = await download_representation('1', 'video')
             audio_file = await download_representation('4', 'audio')
@@ -406,18 +471,32 @@ async def main():
                 return
 
             # Mux
-            cmd = ['ffmpeg', '-y', '-decryption_key', key_hex, '-i', video_file]
+            cmd = [ffmpeg_bin, '-y', '-decryption_key', key_hex,
+                   '-i', str(video_file)]
             if audio_file:
-                cmd += ['-decryption_key', key_hex, '-i', audio_file]
+                cmd += ['-decryption_key', key_hex, '-i', str(audio_file)]
             cmd += ['-c', 'copy', str(output_file)]
-            subprocess.run(cmd, check=True)
+            try:
+                subprocess.run(cmd, check=True)
+            except FileNotFoundError:
+                print(f"ffmpeg could not be executed: {ffmpeg_bin}")
+                print_ffmpeg_help()
+                return
+            except subprocess.CalledProcessError as e:
+                print(f"ffmpeg failed with exit code {e.returncode}")
+                print("   Temporary files kept for inspection:")
+                print(f"   {video_file}")
+                if audio_file:
+                    print(f"   {audio_file}")
+                return
 
             # Cleanup
-            for tf in ["video_enc.mp4", "audio_enc.mp4"]:
-                try:
-                    Path(tf).unlink()
-                except FileNotFoundError:
-                    pass
+            for tf in (video_file, audio_file):
+                if tf:
+                    try:
+                        tf.unlink()
+                    except (FileNotFoundError, OSError):
+                        pass
 
             print(f"✅ {output_name} saved to {downloads_dir}")
             print("Play another video to download, or close the browser to exit.\n")
